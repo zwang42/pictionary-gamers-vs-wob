@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Pictionary Timer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        .setup-screen, .game-screen {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .hidden { display: none !important; }
+        label { font-weight: bold; text-align: left; }
+        input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-success:hover { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:hover { background-color: #c82333; }
+        
+        #word-display {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #333;
+            min-height: 54px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .action-btns {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="setup-screen" class="setup-screen">
+        <h2>Pictionary Setup</h2>
+        <label>Timer Duration:</label>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="setup-min" value="1" min="0" style="width: 50%;"> Mins
+            <input type="number" id="setup-sec" value="30" min="0" max="59" style="width: 50%;"> Secs
+        </div>
+        
+        <label>Max Skips Allowed:</label>
+        <input type="number" id="setup-skips" value="3" min="0">
+        
+        <label>Start at Word Number (1-indexed):</label>
+        <input type="number" id="setup-index" value="1" min="1">
+        
+        <button class="btn-primary" onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="game-screen" class="game-screen hidden">
+        <div class="stats">
+            <div>Timer: <span id="timer-display">00:00</span></div>
+            <div>Score: <span id="score-display">0</span></div>
+            <div>Skips Left: <span id="skips-display">0</span></div>
+        </div>
+        
+        <div id="word-display">Loading...</div>
+        
+        <div class="action-btns">
+            <button id="skip-btn" class="btn-danger" onclick="handleSkip()">Skip</button>
+            <button id="next-btn" class="btn-success" onclick="handleNext()">Next / Done</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let words = [];
+    let currentIndex = 0;
+    let score = 0;
+    let skipsLeft = 0;
+    let timerInterval = null;
+    let totalSeconds = 0;
+
+    // Fetch words from the local txt file on load
+    async function loadWords() {
+        try {
+            const response = await fetch('words.txt');
+            const text = await response.text();
+            // Split by newline and remove empty lines
+            words = text.split('\n').map(word => word.trim()).filter(word => word.length > 0);
+        } catch (error) {
+            alert("Error loading words.txt. Make sure it's in the same folder.");
+        }
+    }
+
+    function startGame() {
+        if (words.length === 0) {
+            alert("Words are still loading or words.txt is empty.");
+            return;
+        }
+
+        // Read setup values
+        const mins = parseInt(document.getElementById('setup-min').value) || 0;
+        const secs = parseInt(document.getElementById('setup-sec').value) || 0;
+        totalSeconds = (mins * 60) + secs;
+        
+        skipsLeft = parseInt(document.getElementById('setup-skips').value) || 0;
+        // Convert 1-based user input to 0-based array index
+        currentIndex = (parseInt(document.getElementById('setup-index').value) || 1) - 1; 
+
+        if (currentIndex >= words.length || currentIndex < 0) {
+            alert(`Starting word index out of range. Max words available: ${words.length}`);
+            return;
+        }
+
+        // Reset stats
+        score = 0;
+        document.getElementById('score-display').innerText = score;
+        document.getElementById('skips-display').innerText = skipsLeft;
+        updateTimerDisplay();
+
+        // Swap screens
+        document.getElementById('setup-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+
+        // Display first word and start clock
+        displayWord();
+        startTimer();
+    }
+
+    function displayWord() {
+        if (currentIndex < words.length) {
+            document.getElementById('word-display').innerText = words[currentIndex];
+        } else {
+            endGame("Out of words!");
+        }
+    }
+
+    function handleNext() {
+        score++;
+        document.getElementById('score-display').innerText = score;
+        currentIndex++;
+        displayWord();
+    }
+
+    function handleSkip() {
+        if (skipsLeft > 0) {
+            skipsLeft--;
+            document.getElementById('skips-display').innerText = skipsLeft;
+            currentIndex++;
+            displayWord();
+        } else {
+            alert("No skips remaining!");
+        }
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            if (totalSeconds <= 0) {
+                endGame("Time's up!");
+            } else {
+                totalSeconds--;
+                updateTimerDisplay();
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        document.getElementById('timer-display').innerText = `${m}:${s}`;
+    }
+
+    function endGame(reason) {
+        clearInterval(timerInterval);
+        alert(`${reason}\nFinal Score: ${score}`);
+        // Go back to setup
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('setup-screen').classList.remove('hidden');
+    }
+
+    // Initialize word load
+    loadWords();
+</script>
+</body>
+</html>
