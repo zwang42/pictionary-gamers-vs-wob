@@ -191,33 +191,3 @@
     }
 
     function startTimer() {
-        clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-            if (totalSeconds <= 0) {
-                endGame("Time's up!");
-            } else {
-                totalSeconds--;
-                updateTimerDisplay();
-            }
-        }, 1000);
-    }
-
-    function updateTimerDisplay() {
-        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-        const s = (totalSeconds % 60).toString().padStart(2, '0');
-        document.getElementById('timer-display').innerText = `${m}:${s}`;
-    }
-
-    function endGame(reason) {
-        clearInterval(timerInterval);
-        alert(`${reason}\nFinal Score: ${score}`);
-        // Go back to setup
-        document.getElementById('game-screen').classList.add('hidden');
-        document.getElementById('setup-screen').classList.remove('hidden');
-    }
-
-    // Initialize word load
-    loadWords();
-</script>
-</body>
-</html>
